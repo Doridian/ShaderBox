@@ -1,6 +1,7 @@
-*.class
-
-# Package Files #
-*.jar
-*.war
-*.ear
+/out
+/.idea
+*.iml
+/jar
+/shaders
+autosave.fsh
+autosave.png

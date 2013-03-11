@@ -1,0 +1,4 @@
+Manifest-Version: 1.0
+Main-Class: de.doridian.shaderbox.Main
+Class-Path: lwjgl_util.jar lwjgl.jar jinput.jar rsyntaxtextarea.jar NativeBass.jar
+
