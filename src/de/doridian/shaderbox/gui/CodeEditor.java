@@ -23,9 +23,7 @@ import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -313,14 +311,47 @@ public class CodeEditor {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				JFileChooser jFileChooser = new JFileChooser();
-				FileFilter fileFilter = new FileNameExtensionFilter("Shader file (*.fsh, *.shader)", "fsh", "shader");
-				jFileChooser.addChoosableFileFilter(fileFilter);
-				jFileChooser.setFileFilter(fileFilter);
+
+				FileFilter fragmentFileFilter = new FileNameExtensionFilter("Fragment shader file (*.fsh)", "fsh");
+				jFileChooser.addChoosableFileFilter(fragmentFileFilter);
+				FileFilter geometryFileFilter = new FileNameExtensionFilter("Geometry shader file (*.gsh)", "gsh");
+				jFileChooser.addChoosableFileFilter(geometryFileFilter);
+				FileFilter vertexFileFilter = new FileNameExtensionFilter("Vertex shader file (*.vsh)", "vsh");
+				jFileChooser.addChoosableFileFilter(vertexFileFilter);
+				FileFilter shaderboxFileFilter = new FileNameExtensionFilter("ShaderBox file (*.sbox)", "sbox");
+				jFileChooser.addChoosableFileFilter(shaderboxFileFilter);
+
+				jFileChooser.setFileFilter(shaderboxFileFilter);
+				jFileChooser.setAcceptAllFileFilterUsed(false);
+
 				jFileChooser.setCurrentDirectory(lastSelectedFolder);
 				if(jFileChooser.showOpenDialog(rootPanel) == JFileChooser.APPROVE_OPTION) {
 					try {
-						lastSelectedFolder = jFileChooser.getSelectedFile().getParentFile();
-						GSHcodeEditor.setText(Utils.readFileAsString(jFileChooser.getSelectedFile()));
+						final File file = jFileChooser.getSelectedFile();
+						lastSelectedFolder = file.getParentFile();
+						switch (getShaderTypeFromFile(file)) {
+							case VERTEX:
+								VSHcodeEditor.setText(Utils.readFileAsString(file));
+								break;
+							case GEOMETRY:
+								GSHcodeEditor.setText(Utils.readFileAsString(file));
+								break;
+							case FRAGMENT:
+								FSHcodeEditor.setText(Utils.readFileAsString(file));
+								break;
+							case SHADERBOX:
+								FileInputStream fileInputStream = new FileInputStream(file);
+								ObjectInputStream objectInputStream = new ObjectInputStream(fileInputStream);
+								VSHcodeEditor.setText((String)objectInputStream.readObject());
+								GSHcodeEditor.setText((String)objectInputStream.readObject());
+								FSHcodeEditor.setText((String)objectInputStream.readObject());
+								objectInputStream.close();
+								fileInputStream.close();
+								break;
+							default:
+								JOptionPane.showMessageDialog(rootPanel, "Invalid extension", "ShaderBox", JOptionPane.ERROR_MESSAGE);
+								return;
+						}
 						refreshCode();
 					} catch (Exception ex) {
 						ex.printStackTrace();
@@ -334,9 +365,19 @@ public class CodeEditor {
 			public void actionPerformed(ActionEvent e) {
 				File file = null;
 				JFileChooser jFileChooser = new JFileChooser();
-				FileFilter fileFilter = new FileNameExtensionFilter("Shader file (*.fsh, *.shader)", "fsh", "shader");
-				jFileChooser.addChoosableFileFilter(fileFilter);
-				jFileChooser.setFileFilter(fileFilter);
+
+				FileFilter fragmentFileFilter = new FileNameExtensionFilter("Fragment shader file (*.fsh)", "fsh");
+				jFileChooser.addChoosableFileFilter(fragmentFileFilter);
+				FileFilter geometryFileFilter = new FileNameExtensionFilter("Geometry shader file (*.gsh)", "gsh");
+				jFileChooser.addChoosableFileFilter(geometryFileFilter);
+				FileFilter vertexFileFilter = new FileNameExtensionFilter("Vertex shader file (*.vsh)", "vsh");
+				jFileChooser.addChoosableFileFilter(vertexFileFilter);
+				FileFilter shaderboxFileFilter = new FileNameExtensionFilter("ShaderBox file (*.sbox)", "sbox");
+				jFileChooser.addChoosableFileFilter(shaderboxFileFilter);
+
+				jFileChooser.setFileFilter(shaderboxFileFilter);
+				jFileChooser.setAcceptAllFileFilterUsed(false);
+
 				jFileChooser.setCurrentDirectory(lastSelectedFolder);
 				if(jFileChooser.showSaveDialog(rootPanel) == JFileChooser.APPROVE_OPTION) {
 					file = jFileChooser.getSelectedFile();
@@ -349,9 +390,37 @@ public class CodeEditor {
 				lastSelectedFolder = file.getParentFile();
 
 				try {
-					FileWriter fileWriter = new FileWriter(file);
-					fileWriter.write(GSHcodeEditor.getText());
-					fileWriter.close();
+					switch (getShaderTypeFromFile(file)) {
+						case VERTEX:
+							FileWriter fileWriter1 = new FileWriter(file);
+							fileWriter1.write(VSHcodeEditor.getText());
+							fileWriter1.close();
+							break;
+						case GEOMETRY:
+							FileWriter fileWriter2 = new FileWriter(file);
+							fileWriter2.write(GSHcodeEditor.getText());
+							fileWriter2.close();
+							break;
+						case FRAGMENT:
+							FileWriter fileWriter3 = new FileWriter(file);
+							fileWriter3.write(FSHcodeEditor.getText());
+							fileWriter3.close();
+							break;
+						case SHADERBOX:
+							FileOutputStream fileOutputStream = new FileOutputStream(file);
+							ObjectOutputStream objectOutputStream = new ObjectOutputStream(fileOutputStream);
+							objectOutputStream.writeObject(VSHcodeEditor.getText());
+							objectOutputStream.writeObject(GSHcodeEditor.getText());
+							objectOutputStream.writeObject(FSHcodeEditor.getText());
+							objectOutputStream.flush();
+							fileOutputStream.flush();
+							objectOutputStream.close();
+							fileOutputStream.close();
+							break;
+						default:
+							JOptionPane.showMessageDialog(rootPanel, "Invalid extension", "ShaderBox", JOptionPane.ERROR_MESSAGE);
+							break;
+					}
 				} catch (Exception ex) {
 					ex.printStackTrace();
 				}
@@ -391,6 +460,30 @@ public class CodeEditor {
 				BASSMain.doPlay = !BASSMain.doPlay;
 			}
 		});
+	}
+
+	enum ShaderType {
+		FRAGMENT, VERTEX, GEOMETRY, SHADERBOX, UNKNOWN
+	}
+
+	private ShaderType getShaderTypeFromFile(File file) {
+		String fileName = file.getName();
+		final int fileExtPos = fileName.lastIndexOf('.');
+		if(fileExtPos < 0) {
+			return ShaderType.UNKNOWN;
+		}
+		fileName = fileName.substring(fileExtPos + 1).toLowerCase();
+		if(fileName.equals("fsh")) {
+			return ShaderType.FRAGMENT;
+		} else if(fileName.equals("gsh")) {
+			return ShaderType.GEOMETRY;
+		} else if(fileName.equals("vsh")) {
+			return ShaderType.VERTEX;
+		} else if(fileName.equals("sbox")) {
+			return ShaderType.SHADERBOX;
+		} else {
+			return ShaderType.UNKNOWN;
+		}
 	}
 
 	private void refreshCode() {
