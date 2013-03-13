@@ -3,7 +3,9 @@ package de.doridian.shaderbox.gui;
 import de.doridian.shaderbox.Utils;
 import de.doridian.shaderbox.al.BASSMain;
 import de.doridian.shaderbox.gl.ImageHelper;
+import de.doridian.shaderbox.gl.MainShader;
 import de.doridian.shaderbox.gl.OpenGLMain;
+import de.doridian.shaderbox.gl.ShaderProgram;
 import org.fife.ui.rsyntaxtextarea.RSyntaxDocument;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rtextarea.Gutter;
@@ -30,9 +32,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class CodeEditor {
-	private RSyntaxTextArea codeEditor;
+	private RSyntaxTextArea GSHcodeEditor;
 	private JPanel rootPanel;
-	private RTextScrollPane codeScrollPane;
+	private RTextScrollPane GSHcodeScrollPane;
 	private JButton btnRun;
 	private JCheckBox cbRunning;
 	private JLabel labelStatus;
@@ -46,16 +48,23 @@ public class CodeEditor {
 	private JButton btnClearSound;
 	private JButton btnLoadSound;
 	private JButton btnPlayPauseSound;
+	private JTabbedPane codeEditorTabs;
+	private RTextScrollPane FSHcodeScrollPane;
+	private RTextScrollPane VSHcodeScrollPane;
+	private RSyntaxTextArea FSHcodeEditor;
+	private RSyntaxTextArea VSHcodeEditor;
 
 	private File lastSelectedFolder = new File("shaders");
 
-	private Gutter codeEditorGutter;
+	private Gutter GSHcodeEditorGutter;
+	private Gutter FSHcodeEditorGutter;
+	private Gutter VSHcodeEditorGutter;
 
 	private final ImageIcon errorIcon = Utils.createImageIcon("icons/exclamation.png", "error");
 	private final ImageIcon warningIcon = Utils.createImageIcon("icons/error.png", "warning");
 
 	//0(18) : error C0000: syntax error, unexpected identifier, expecting ',' or ')' at token "resolution"
-	private static final Pattern errorParserPattern = Pattern.compile("([^:]+: )?([0-9]+)\\(([0-9]+)\\) : ([a-zA-Z]+) C[0-9a-fA-F]+: (.+)");
+	private static final Pattern errorParserPattern = Pattern.compile("([^:]+: )?([a-zA-Z]+):([0-9]+)\\(([0-9]+)\\) : ([a-zA-Z]+) C[0-9a-fA-F]+: (.+)");
 
 	private void parseShaderError(String errorRaw) {
 		if(errorRaw.isEmpty()) {
@@ -77,16 +86,20 @@ public class CodeEditor {
 			String error = errorX;
 			Matcher matcher = errorParserPattern.matcher(error);
 			if(matcher.matches()) {
-				int numChar = Integer.parseInt(matcher.group(2));
-				int numLine = Integer.parseInt(matcher.group(3)) - 1;
-				String errorType = matcher.group(4).toLowerCase();
-				error = matcher.group(5);
+				//int numChar = Integer.parseInt(matcher.group(3));
+				int numLine = Integer.parseInt(matcher.group(4)) - 1;
+				String errorType = matcher.group(5).toLowerCase();
+				error = matcher.group(6);
 
-				try {
-					numChar += codeEditor.getLineStartOffset(numLine);
-				} catch (Exception e) {
-					e.printStackTrace();
-					continue;
+				final String eWhere = matcher.group(2).toLowerCase();
+				if(eWhere.equals("gsh")) {
+					numLine += 1000000;
+				} else if(eWhere.equals("fsh")) {
+					numLine += 2000000;
+				} else if(eWhere.equals("vsh")) {
+					//NOTHING!
+				} else {
+					numLine += 3000000;
 				}
 
 				try {
@@ -118,10 +131,23 @@ public class CodeEditor {
 				error = error.substring(0, 128) + "...";
 			}
 			try {
-				if(Boolean.TRUE.equals(isErrorMap.get(line))) {
-					codeEditorGutter.addLineTrackingIcon(line, errorIcon, error);
+				Gutter curGutter = VSHcodeEditorGutter;
+				if(line >= 3000000) {
+					continue;
+				} else if(line >= 2000000) {
+					curGutter = FSHcodeEditorGutter;
+				} else if(line >= 1000000) {
+					curGutter = GSHcodeEditorGutter;
+				}
+
+				boolean isError = Boolean.TRUE.equals(isErrorMap.get(line));
+
+				line %= 1000000;
+
+				if(isError) {
+					curGutter.addLineTrackingIcon(line, errorIcon, error);
 				} else {
-					codeEditorGutter.addLineTrackingIcon(line, warningIcon, error);
+					curGutter.addLineTrackingIcon(line, warningIcon, error);
 				}
 			} catch (Exception exc) {
 				exc.printStackTrace();
@@ -134,28 +160,37 @@ public class CodeEditor {
 		} else if(warningC > 0) {
 			labelStatus.setForeground(Color.ORANGE);
 			labelStatus.setText("BUILD SUCCESS | 0 errors, " + warningC + " warnings");
+		} else {
+			labelStatus.setForeground(Color.GREEN);
+			labelStatus.setText("BUILD SUCCESS | 0 errors, 0 warnings");
 		}
+	}
+
+	private Gutter initializeEditor(RSyntaxTextArea rSyntaxTextArea, RTextScrollPane rTextScrollPane, String shType, String defaultContent) {
+		((RSyntaxDocument) rSyntaxTextArea.getDocument()).setTokenMakerFactory(new GLSLTokenMakerFactory());
+		rSyntaxTextArea.setSyntaxEditingStyle("text/glsl");
+		rSyntaxTextArea.setCodeFoldingEnabled(true);
+		rSyntaxTextArea.setAntiAliasingEnabled(true);
+		rTextScrollPane.setLineNumbersEnabled(true);
+		rTextScrollPane.setFoldIndicatorEnabled(true);
+		rTextScrollPane.setIconRowHeaderEnabled(true);
+
+		try {
+			rSyntaxTextArea.setText(Utils.readFileAsString(new File("autosave." + shType)));
+		} catch (Exception e) {
+			rSyntaxTextArea.setText(defaultContent);
+		}
+
+		return rTextScrollPane.getGutter();
 	}
 
 	public CodeEditor() {
 		lastSelectedFolder.mkdirs();
 
-		((RSyntaxDocument)codeEditor.getDocument()).setTokenMakerFactory(new GLSLTokenMakerFactory());
-		codeEditor.setSyntaxEditingStyle("text/glsl");
+		GSHcodeEditorGutter = initializeEditor(GSHcodeEditor, GSHcodeScrollPane, "gsh", "");
+		FSHcodeEditorGutter = initializeEditor(FSHcodeEditor, FSHcodeScrollPane, "fsh", MainShader.FSH_DONOTHING);
+		VSHcodeEditorGutter = initializeEditor(VSHcodeEditor, VSHcodeScrollPane, "vsh", ShaderProgram.VSH_DONOTHING);
 
-		codeEditor.setCodeFoldingEnabled(true);
-		codeEditor.setAntiAliasingEnabled(true);
-		codeScrollPane.setLineNumbersEnabled(true);
-		codeScrollPane.setFoldIndicatorEnabled(true);
-		codeScrollPane.setIconRowHeaderEnabled(true);
-
-		codeEditorGutter = codeScrollPane.getGutter();
-
-		try {
-			codeEditor.setText(Utils.readFileAsString(new File("autosave.fsh")));
-		} catch (Exception e) {
-			codeEditor.setText("");
-		}
 		refreshCode();
 
 		cbRunning.setSelected(OpenGLMain.useCurrentProgram);
@@ -166,7 +201,23 @@ public class CodeEditor {
 			public void actionPerformed(ActionEvent e) {
 				try {
 					FileWriter fileWriter = new FileWriter("autosave.fsh");
-					fileWriter.write(codeEditor.getText());
+					fileWriter.write(FSHcodeEditor.getText());
+					fileWriter.close();
+				} catch (Exception ex) {
+					ex.printStackTrace();
+				}
+
+				try {
+					FileWriter fileWriter = new FileWriter("autosave.gsh");
+					fileWriter.write(GSHcodeEditor.getText());
+					fileWriter.close();
+				} catch (Exception ex) {
+					ex.printStackTrace();
+				}
+
+				try {
+					FileWriter fileWriter = new FileWriter("autosave.vsh");
+					fileWriter.write(VSHcodeEditor.getText());
 					fileWriter.close();
 				} catch (Exception ex) {
 					ex.printStackTrace();
@@ -269,7 +320,7 @@ public class CodeEditor {
 				if(jFileChooser.showOpenDialog(rootPanel) == JFileChooser.APPROVE_OPTION) {
 					try {
 						lastSelectedFolder = jFileChooser.getSelectedFile().getParentFile();
-						codeEditor.setText(Utils.readFileAsString(jFileChooser.getSelectedFile()));
+						GSHcodeEditor.setText(Utils.readFileAsString(jFileChooser.getSelectedFile()));
 						refreshCode();
 					} catch (Exception ex) {
 						ex.printStackTrace();
@@ -299,7 +350,7 @@ public class CodeEditor {
 
 				try {
 					FileWriter fileWriter = new FileWriter(file);
-					fileWriter.write(codeEditor.getText());
+					fileWriter.write(GSHcodeEditor.getText());
 					fileWriter.close();
 				} catch (Exception ex) {
 					ex.printStackTrace();
@@ -343,10 +394,17 @@ public class CodeEditor {
 	}
 
 	private void refreshCode() {
-		codeEditorGutter.removeAllTrackingIcons();
+		GSHcodeEditorGutter.removeAllTrackingIcons();
+		VSHcodeEditorGutter.removeAllTrackingIcons();
+		FSHcodeEditorGutter.removeAllTrackingIcons();
 		labelStatus.setForeground(Color.YELLOW);
 		labelStatus.setText("Compiling");
-		OpenGLMain.newCurrentProgramFragment = codeEditor.getText();
+
+		OpenGLMain.compileNewProgramNow = false;
+		OpenGLMain.newCurrentProgramFragment = FSHcodeEditor.getText();
+		OpenGLMain.newCurrentProgramVertex = VSHcodeEditor.getText();
+		OpenGLMain.newCurrentProgramGeometry = GSHcodeEditor.getText();
+		OpenGLMain.compileNewProgramNow = true;
 	}
 
 	public static void main(String[] args) {
@@ -377,7 +435,7 @@ public class CodeEditor {
 						Thread.sleep(100);
 					} catch (Exception e) { }
 
-					if(OpenGLMain.newCurrentProgramFragment == null && OpenGLMain.lastShaderError != null) {
+					if((!OpenGLMain.compileNewProgramNow) && OpenGLMain.lastShaderError != null) {
 						codeEditor.parseShaderError(OpenGLMain.lastShaderError);
 						OpenGLMain.lastShaderError = null;
 					}

@@ -9,12 +9,12 @@ public class MainShader extends ShaderProgram {
 
 	public static final String FSH_DONOTHING =
 			"#version 130\n" +
+			"//Default Fragment Shader rendering backbuffer => front (not manipulating anything)\n" +
 			"uniform vec2 resolution;\n" +
 			"uniform sampler2D backbuffer;\n" +
 			"out vec4 FragColor;\n" +
 			"void main( void ) {\n" +
-			"	vec2 position = ( gl_FragCoord.xy / resolution.xy );\n" +
-			"	FragColor = texture(backbuffer, position);\n" +
+			"	FragColor = texture(backbuffer, (gl_FragCoord.xy / resolution.xy));\n" +
 			"}";
 
 	public final int uniformMouse;
@@ -23,8 +23,8 @@ public class MainShader extends ShaderProgram {
 	public final int uniformTime;
 	public final int uniformOriginal;
 
-	public MainShader(String contents) {
-		super(ShaderProgram.VSH_DONOTHING, contents);
+	public MainShader(String vsh, String gsh, String fsh) {
+		super((vsh == null || vsh.isEmpty()) ? ShaderProgram.VSH_DONOTHING : vsh, gsh, (fsh == null || fsh.isEmpty()) ? FSH_DONOTHING : fsh);
 
 		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, OpenGLMain.buffer);
 		GL20.glVertexAttribPointer(vertexPosition, 2, GL11.GL_FLOAT, false, 0, 0);

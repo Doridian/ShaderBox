@@ -1,36 +1,31 @@
 package de.doridian.shaderbox.gl;
 
-import org.lwjgl.opengl.*;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL20;
+import org.lwjgl.opengl.GL32;
 
-import java.io.File;
 import java.util.HashMap;
 
 public abstract class ShaderProgram {
-	protected static String VSH_DONOTHING = "attribute vec3 position; void main() { gl_Position = vec4( position, 1.0 ); }";
+	public static final String VSH_DONOTHING =
+			"//Default Vertex shader outputting unmanipulated vertices\n" +
+			"attribute vec3 position;\n" +
+			"void main() {\n" +
+			"	gl_Position = vec4( position, 1.0 );\n" +
+			"}";
 
 	private final HashMap<String, Integer> uniformCache = new HashMap<String, Integer>();
 	private int program;
 
-	protected ShaderProgram(File f_vsh, File f_fsh) {
-		init(ShaderHelper.createShader(f_vsh, GL20.GL_VERTEX_SHADER), ShaderHelper.createShader(f_fsh, GL20.GL_FRAGMENT_SHADER));
+	protected ShaderProgram(String vsh, String gsh, String fsh) {
+		init(ShaderHelper.createShader(vsh, GL20.GL_VERTEX_SHADER), ShaderHelper.createShader(gsh, GL32.GL_GEOMETRY_SHADER), ShaderHelper.createShader(fsh, GL20.GL_FRAGMENT_SHADER));
 	}
 
-	protected ShaderProgram(String vsh, String fsh) {
-		init(ShaderHelper.createShader(vsh, GL20.GL_VERTEX_SHADER), ShaderHelper.createShader(fsh, GL20.GL_FRAGMENT_SHADER));
-	}
-
-	protected ShaderProgram(String vsh, File f_fsh) {
-		init(ShaderHelper.createShader(vsh, GL20.GL_VERTEX_SHADER), ShaderHelper.createShader(f_fsh, GL20.GL_FRAGMENT_SHADER));
-	}
-
-	protected ShaderProgram(File f_vsh, String fsh) {
-		init(ShaderHelper.createShader(f_vsh, GL20.GL_VERTEX_SHADER), ShaderHelper.createShader(fsh, GL20.GL_FRAGMENT_SHADER));
-	}
-
-	private void init(int vsh, int fsh) {
+	private void init(int vsh, int gsh, int fsh) {
 		if(vsh == 0 || fsh == 0) {
 			ShaderHelper.deleteShader(fsh);
 			ShaderHelper.deleteShader(vsh);
+			ShaderHelper.deleteShader(gsh);
 			throw new RuntimeException();
 		}
 
@@ -39,6 +34,8 @@ public abstract class ShaderProgram {
 			throw new RuntimeException();
 
 		GL20.glAttachShader(program, vsh);
+		if(gsh != 0)
+			GL20.glAttachShader(program, gsh);
 		GL20.glAttachShader(program, fsh);
 
 		GL20.glLinkProgram(program);
@@ -56,6 +53,7 @@ public abstract class ShaderProgram {
 		}
 
 		ShaderHelper.deleteShader(fsh);
+		ShaderHelper.deleteShader(gsh);
 		ShaderHelper.deleteShader(vsh);
 	}
 

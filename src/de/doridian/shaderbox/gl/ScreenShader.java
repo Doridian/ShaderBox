@@ -11,7 +11,7 @@ public class ScreenShader extends ShaderProgram {
 	public final int uniformTexture;
 
 	public ScreenShader() {
-		super(ShaderProgram.VSH_DONOTHING,
+		super(ShaderProgram.VSH_DONOTHING, null,
 				"#version 130\n" +
 				"uniform vec2 offset;\n" +
 				"uniform vec2 resolution;\n" +

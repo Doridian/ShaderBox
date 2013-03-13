@@ -39,6 +39,10 @@ public class OpenGLMain {
 	static long minFrameTime = 0;
 
 	public static String newCurrentProgramFragment = null;
+	public static String newCurrentProgramVertex = null;
+	public static String newCurrentProgramGeometry = null;
+	public static boolean compileNewProgramNow = false;
+
 	public static boolean useCurrentProgram = true;
 	public static int useCurrentProgramSingleSteps = 0;
 	public static String lastShaderError = null;
@@ -143,7 +147,7 @@ public class OpenGLMain {
 		initDisplay();
 
 		screenProgram = new ScreenShader();
-		currentProgram = new MainShader(MainShader.FSH_DONOTHING);
+		currentProgram = new MainShader(ShaderProgram.VSH_DONOTHING, null, MainShader.FSH_DONOTHING);
 
 		inputThread.start();
 
@@ -155,16 +159,19 @@ public class OpenGLMain {
 		long lastShadedFrameTime = 0;
 
 		while(shouldRun && !Display.isCloseRequested()) {
-			if(newCurrentProgramFragment != null) {
+			if(compileNewProgramNow) {
 				try {
 					lastShaderError = "";
-					MainShader newProgram = new MainShader(newCurrentProgramFragment);
+					MainShader newProgram = new MainShader(newCurrentProgramVertex, newCurrentProgramGeometry, newCurrentProgramFragment);
 					currentProgram.delete();
 					currentProgram = newProgram;
 				} catch (Exception e) {
 					lastShaderError = e.getMessage();
 				}
 				newCurrentProgramFragment = null;
+				newCurrentProgramGeometry = null;
+				newCurrentProgramVertex = null;
+				compileNewProgramNow = false;
 			}
 
 			if(doReinitialize) {
