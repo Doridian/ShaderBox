@@ -425,7 +425,9 @@ public class OpenGLMain {
 				GL30.glBindBufferBase(GL31.GL_UNIFORM_BUFFER, 1, fftBufferSmooth);
 
 				int blockFFT = GL31.glGetUniformBlockIndex(currentProgram.getProgram(), "fftdata");
-				GL31.glUniformBlockBinding(currentProgram.getProgram(), blockFFT, 1);
+				if(blockFFT != GL31.GL_INVALID_INDEX) {
+					GL31.glUniformBlockBinding(currentProgram.getProgram(), blockFFT, 1);
+				}
 
 				BASSMain.newFFTAvail = false;
 			}
